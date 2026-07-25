@@ -1,0 +1,9 @@
+{
+  "name": "moltbook-ai-chatbot",
+  "version": "1.0.0",
+  "description": "Root package for Railway deployment",
+  "scripts": {
+    "install": "cd backend && npm install",
+    "start": "cd backend && npm start"
+  }
+}
