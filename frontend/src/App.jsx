@@ -151,15 +151,72 @@ function App() {
     }
   };
 
+  const stitchFrames = (frames) => {
+    return new Promise((resolve) => {
+      const MAX_FRAMES = 9;
+      const sampledFrames = [];
+      if (frames.length <= MAX_FRAMES) {
+        sampledFrames.push(...frames);
+      } else {
+        const step = (frames.length - 1) / (MAX_FRAMES - 1);
+        for (let i = 0; i < MAX_FRAMES; i++) {
+          sampledFrames.push(frames[Math.round(i * step)]);
+        }
+      }
+
+      const images = [];
+      let loadedCount = 0;
+      
+      sampledFrames.forEach((src, i) => {
+        const img = new Image();
+        img.onload = () => {
+          images[i] = img;
+          loadedCount++;
+          if (loadedCount === sampledFrames.length) {
+            const cols = Math.ceil(Math.sqrt(sampledFrames.length));
+            const rows = Math.ceil(sampledFrames.length / cols);
+            
+            const frameW = images[0].width;
+            const frameH = images[0].height;
+            
+            const scale = 600 / Math.max(frameW, frameH); 
+            const drawW = frameW * scale;
+            const drawH = frameH * scale;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = cols * drawW;
+            canvas.height = rows * drawH;
+            const ctx = canvas.getContext('2d');
+            
+            images.forEach((image, index) => {
+              const x = (index % cols) * drawW;
+              const y = Math.floor(index / cols) * drawH;
+              ctx.drawImage(image, x, y, drawW, drawH);
+              
+              ctx.fillStyle = 'red';
+              ctx.font = 'bold 36px Arial';
+              ctx.fillText((index + 1).toString(), x + 10, y + 40);
+            });
+            
+            resolve(canvas.toDataURL('image/jpeg', 0.6));
+          }
+        };
+        img.src = src;
+      });
+    });
+  };
+
   const processRecording = async (frames) => {
     setIsLoading(true);
-    setMessages(prev => [...prev, { role: 'user', content: `[Recorded workflow... Processing ${frames.length} frames]` }]);
+    setMessages(prev => [...prev, { role: 'user', content: `[Recorded workflow... Processing frames]` }]);
     
     try {
+      const stitchedImage = await stitchFrames(frames);
+
       const response = await fetch('http://localhost:3001/api/skill/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frames })
+        body: JSON.stringify({ frames: [stitchedImage] })
       });
 
       const data = await response.json();
