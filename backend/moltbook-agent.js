@@ -225,6 +225,6 @@ async function runHeartbeat() {
   }
 }
 
-// Run once immediately, then every 30 minutes
+// Run once immediately, then every 3 minutes
 runHeartbeat();
-setInterval(runHeartbeat, 30 * 60 * 1000);
+setInterval(runHeartbeat, 3 * 60 * 1000);
