@@ -26,6 +26,17 @@ function getNvidiaClient() {
   });
 }
 
+function getNvidiaVisionClient() {
+  const visionKey = process.env.NVIDIA_VISION_API_KEY || nvidiaApiKeys[0];
+  if (!visionKey) {
+    throw new Error("No NVIDIA API Keys configured for vision.");
+  }
+  return new OpenAI({
+    baseURL: "https://integrate.api.nvidia.com/v1",
+    apiKey: visionKey,
+  });
+}
+
 // Streaming chat endpoint
 app.post("/api/chat", async (req, res) => {
   try {
@@ -134,7 +145,7 @@ app.post("/api/skill/generate", async (req, res) => {
       return res.status(400).json({ error: "Frames array is required" });
     }
 
-    const client = getNvidiaClient();
+    const client = getNvidiaVisionClient();
 
     // Construct the message payload for the vision model
     const contentPayload = [
