@@ -14,12 +14,22 @@ function App() {
   });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [playingIndex, setPlayingIndex] = useState(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const currentAudioRef = useRef(null);
 
   const playVoice = async (text, index) => {
-    if (playingIndex === index) return;
+    // Stop any currently playing audio
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    if (playingIndex === index) {
+      setPlayingIndex(null);
+      return;
+    }
     setPlayingIndex(index);
     try {
       const response = await fetch('http://localhost:3001/api/synthesize', {
@@ -31,8 +41,9 @@ function App() {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
-      audio.onended = () => setPlayingIndex(null);
-      audio.onerror = () => setPlayingIndex(null);
+      currentAudioRef.current = audio;
+      audio.onended = () => { setPlayingIndex(null); currentAudioRef.current = null; };
+      audio.onerror = () => { setPlayingIndex(null); currentAudioRef.current = null; };
       await audio.play();
     } catch (err) {
       console.error('Error playing voice:', err);
@@ -50,6 +61,11 @@ function App() {
   }, [messages, isLoading]);
 
   const clearChat = () => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    setPlayingIndex(null);
     const initial = [{ role: 'assistant', content: 'Hello! I am your AI assistant powered by NVIDIA NIM. How can I help you today?' }];
     setMessages(initial);
     localStorage.removeItem('chatMessages');
@@ -78,43 +94,96 @@ function App() {
     setMessages(newMessages);
     setInput('');
     setIsLoading(true);
+    setIsStreaming(true);
     
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
 
+    // Add a placeholder assistant message for streaming
+    const assistantMsg = { role: 'assistant', content: '', reasoning: '' };
+    setMessages(prev => [...prev, assistantMsg]);
+
+    let fullContent = '';
+    let fullReasoning = '';
+
     try {
-      // Send messages excluding the initial greeting if it helps, but OpenAI API handles it.
-      // We will map them for the API.
       const apiMessages = newMessages.map(msg => ({ role: msg.role, content: msg.content }));
 
       const response = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: apiMessages })
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch response');
+        throw new Error('Failed to fetch response');
       }
 
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: data.content,
-        reasoning: data.reasoning
-      }]);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value, { stream: true });
+        const lines = text.split('\n');
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') break;
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === 'content') {
+              fullContent += parsed.content;
+            } else if (parsed.type === 'reasoning') {
+              fullReasoning += parsed.content;
+            }
+
+            // Update the last message in place
+            setMessages(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                role: 'assistant',
+                content: fullContent,
+                reasoning: fullReasoning || undefined
+              };
+              return updated;
+            });
+          } catch (e) {
+            // Skip malformed chunks
+          }
+        }
+      }
+
+      // Auto-play TTS after streaming completes
+      if (fullContent.trim()) {
+        setIsStreaming(false);
+        setIsLoading(false);
+        // Small delay to let state settle before triggering TTS
+        setTimeout(() => {
+          const lastIndex = newMessages.length; // index of the assistant message
+          playVoice(fullContent, lastIndex);
+        }, 300);
+        return;
+      }
+
     } catch (error) {
       console.error("Error:", error);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: "Sorry, I encountered an error. Please check your backend connection and API key."
-      }]);
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          role: 'assistant',
+          content: "Sorry, I encountered an error. Please check your backend connection and API key."
+        };
+        return updated;
+      });
     } finally {
+      setIsStreaming(false);
       setIsLoading(false);
     }
   };
@@ -147,11 +216,16 @@ function App() {
             )}
             <div className={`message ${msg.role === 'user' ? 'user' : 'ai'}`}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
-                <div style={{ flex: 1, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
-                {msg.role === 'assistant' && (
+                <div style={{ flex: 1, whiteSpace: 'pre-wrap' }}>
+                  {msg.content}
+                  {isStreaming && index === messages.length - 1 && msg.role === 'assistant' && (
+                    <span className="streaming-cursor">▌</span>
+                  )}
+                </div>
+                {msg.role === 'assistant' && !isStreaming && msg.content && (
                   <button 
                     onClick={() => playVoice(msg.content, index)}
-                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px', display: 'flex' }}
+                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px', display: 'flex', flexShrink: 0 }}
                     disabled={playingIndex === index}
                     title="Play Audio"
                   >
@@ -167,7 +241,7 @@ function App() {
           </div>
         ))}
         
-        {isLoading && (
+        {isLoading && !isStreaming && (
           <div className="typing-indicator">
             <div className="dot"></div>
             <div className="dot"></div>

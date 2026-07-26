@@ -26,6 +26,7 @@ function getNvidiaClient() {
   });
 }
 
+// Streaming chat endpoint
 app.post("/api/chat", async (req, res) => {
   try {
     const { messages } = req.body;
@@ -35,25 +36,49 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const client = getNvidiaClient();
-    const completion = await client.chat.completions.create({
+
+    // Set headers for Server-Sent Events (SSE)
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const stream = await client.chat.completions.create({
       model: "openai/gpt-oss-120b",
       messages: messages,
       temperature: 1,
       top_p: 1,
       max_tokens: 4096,
-      stream: false,
+      stream: true,
     });
 
-    const responseMessage = completion.choices[0].message;
-    const reasoning = responseMessage.reasoning_content || null;
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta;
+      if (!delta) continue;
 
-    res.json({
-      content: responseMessage.content,
-      reasoning: reasoning,
-    });
+      // Send reasoning tokens
+      if (delta.reasoning_content) {
+        res.write(`data: ${JSON.stringify({ type: "reasoning", content: delta.reasoning_content })}\n\n`);
+      }
+
+      // Send content tokens
+      if (delta.content) {
+        res.write(`data: ${JSON.stringify({ type: "content", content: delta.content })}\n\n`);
+      }
+    }
+
+    // Signal end of stream
+    res.write(`data: [DONE]\n\n`);
+    res.end();
+
   } catch (error) {
     console.error("Error calling NVIDIA API:", error.message);
-    res.status(500).json({ error: "Failed to generate response" });
+    // If headers haven't been sent yet, send JSON error
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to generate response" });
+    } else {
+      res.write(`data: ${JSON.stringify({ type: "error", content: "Stream interrupted." })}\n\n`);
+      res.end();
+    }
   }
 });
 
