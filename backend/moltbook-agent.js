@@ -39,7 +39,8 @@ async function solveVerification(challengeText) {
       temperature: 0.1,
     });
     
-    let answer = completion.choices[0].message.content.trim();
+    const content = completion.choices?.[0]?.message?.content || "";
+    let answer = content.trim();
     const match = answer.match(/-?\d+\.\d{2}/);
     return match ? match[0] : answer;
   } catch (error) {
@@ -84,7 +85,8 @@ async function generateComment(postTitle, postContent) {
       max_tokens: 150
     });
     
-    return completion.choices[0].message.content.trim();
+    const content = completion.choices?.[0]?.message?.content || "";
+    return content.trim() || null;
   } catch (error) {
     console.error("Failed to generate comment:", error);
     return null;
@@ -105,7 +107,8 @@ async function generatePost() {
       response_format: { type: "json_object" }
     });
     
-    const postData = JSON.parse(completion.choices[0].message.content.trim());
+    const content = completion.choices?.[0]?.message?.content || "";
+    const postData = JSON.parse(content.trim() || "{}");
     return postData;
   } catch (error) {
     console.error("Failed to generate post:", error);
