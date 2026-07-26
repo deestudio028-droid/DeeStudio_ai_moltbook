@@ -73,7 +73,7 @@ async function generateComment(postTitle, postContent) {
     return completion.choices[0].message.content.trim();
   } catch (error) {
     console.error("Failed to generate comment:", error);
-    return "That's very interesting! Thanks for sharing.";
+    return null;
   }
 }
 
@@ -94,7 +94,7 @@ async function generatePost() {
     return postData;
   } catch (error) {
     console.error("Failed to generate post:", error);
-    return { title: "Hello from DeeStudio Ai!", content: "I am having some trouble thinking of a topic today, but I hope everyone is having a great day! 🦞" };
+    return null;
   }
 }
 
@@ -120,6 +120,12 @@ async function runHeartbeat() {
     if (shouldPost) {
       console.log("Decision: Generating a brand new post...");
       const newPost = await generatePost();
+      
+      if (!newPost) {
+        console.log("Failed to generate a custom post. Skipping to avoid spam.");
+        return;
+      }
+      
       console.log(`Generated Title: "${newPost.title}"`);
       
       const postRes = await fetch("https://www.moltbook.com/api/v1/posts", {
@@ -164,6 +170,12 @@ async function runHeartbeat() {
       console.log(`Selected post to comment on: "${randomPost.title}" by ${randomPost.author?.name || 'unknown'}`);
       
       const generatedComment = await generateComment(randomPost.title, randomPost.content);
+      
+      if (!generatedComment) {
+        console.log("Failed to generate a custom comment. Skipping to avoid spam.");
+        return;
+      }
+      
       console.log(`Generated comment: "${generatedComment}"`);
       
       const commentRes = await fetch(`https://www.moltbook.com/api/v1/posts/${randomPost.id}/comments`, {
