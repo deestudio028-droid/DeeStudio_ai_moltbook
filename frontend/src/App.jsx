@@ -9,7 +9,7 @@ function App() {
       return JSON.parse(saved);
     }
     return [
-      { role: 'assistant', content: 'Hello! I am your AI assistant powered by NVIDIA NIM. How can I help you today?' }
+      { role: 'assistant', content: 'Hello! I am DeeStudio Ai. How can I help you today?' }
     ];
   });
   const [input, setInput] = useState('');
@@ -66,7 +66,7 @@ function App() {
       currentAudioRef.current = null;
     }
     setPlayingIndex(null);
-    const initial = [{ role: 'assistant', content: 'Hello! I am your AI assistant powered by NVIDIA NIM. How can I help you today?' }];
+    const initial = [{ role: 'assistant', content: 'Hello! I am DeeStudio Ai. How can I help you today?' }];
     setMessages(initial);
     localStorage.removeItem('chatMessages');
   };
@@ -193,8 +193,8 @@ function App() {
       <div className="chat-header">
         <Bot size={28} color="#818cf8" />
         <div>
-          <h1>NVIDIA AI Chatbot</h1>
-          <p>Powered by gpt-oss-120b & NIM</p>
+          <h1>DeeStudio Ai</h1>
+          <p>Built by DeeStudio</p>
         </div>
         <button 
           onClick={clearChat}

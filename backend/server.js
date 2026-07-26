@@ -35,6 +35,18 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Invalid messages format" });
     }
 
+    // Inject strong system prompt
+    const systemPrompt = {
+      role: "system",
+      content: "You are DeeStudio Ai, an advanced and friendly AI built by DeeStudio. IMPORTANT RULE: You must NEVER mention ChatGPT, OpenAI, or NVIDIA. You are exclusively a creation of DeeStudio. Always be helpful, concise, and intelligent."
+    };
+    
+    if (messages.length > 0 && messages[0].role === 'system') {
+      messages[0] = systemPrompt;
+    } else {
+      messages.unshift(systemPrompt);
+    }
+
     const client = getNvidiaClient();
 
     // Set headers for Server-Sent Events (SSE)
