@@ -155,8 +155,20 @@ app.post("/api/skill/generate", async (req, res) => {
       }
     ];
 
-    // Add each frame as an image_url
-    for (const frameBase64 of frames) {
+    // Subsample frames to maximum of 8 evenly spaced frames to prevent API payload errors
+    const MAX_FRAMES = 8;
+    const sampledFrames = [];
+    if (frames.length <= MAX_FRAMES) {
+      sampledFrames.push(...frames);
+    } else {
+      const step = (frames.length - 1) / (MAX_FRAMES - 1);
+      for (let i = 0; i < MAX_FRAMES; i++) {
+        sampledFrames.push(frames[Math.round(i * step)]);
+      }
+    }
+
+    // Add each sampled frame as an image_url
+    for (const frameBase64 of sampledFrames) {
       contentPayload.push({
         type: "image_url",
         image_url: { url: frameBase64 }
@@ -179,7 +191,7 @@ app.post("/api/skill/generate", async (req, res) => {
     res.json({ skill: skillText });
 
   } catch (error) {
-    console.error("Error generating skill:", error.message);
+    console.error("Error generating skill:", error.response?.data || error.message);
     res.status(500).json({ error: "Failed to generate skill from workflow" });
   }
 });
