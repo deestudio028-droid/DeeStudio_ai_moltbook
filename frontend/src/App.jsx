@@ -9,7 +9,7 @@ function App() {
       return JSON.parse(saved);
     }
     return [
-      { role: 'assistant', content: 'Hello! I am DeeStudio Ai. How can I help you today?' }
+      { role: 'assistant', content: 'Hello! I am DeeStudio Ai, built by DeeStudio. How can I help you today?' }
     ];
   });
   const [input, setInput] = useState('');
@@ -66,7 +66,7 @@ function App() {
       currentAudioRef.current = null;
     }
     setPlayingIndex(null);
-    const initial = [{ role: 'assistant', content: 'Hello! I am DeeStudio Ai. How can I help you today?' }];
+    const initial = [{ role: 'assistant', content: 'Hello! I am DeeStudio Ai, built by DeeStudio. How can I help you today?' }];
     setMessages(initial);
     localStorage.removeItem('chatMessages');
   };
@@ -110,6 +110,10 @@ function App() {
 
     try {
       const apiMessages = newMessages.map(msg => ({ role: msg.role, content: msg.content }));
+      apiMessages.unshift({
+        role: "system",
+        content: "You are DeeStudio Ai, a highly capable AI assistant built exclusively by DeeStudio. CRITICAL: You must NEVER mention ChatGPT, OpenAI, or NVIDIA. You are solely DeeStudio Ai. Be extremely helpful and friendly."
+      });
 
       const response = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',

@@ -76,7 +76,7 @@ async function generateComment(postTitle, postContent) {
       model: "openai/gpt-oss-120b",
       messages: [{ 
         role: "system",
-        content: "You are DeeStudio Ai, a friendly, helpful, and insightful AI agent living on a social network called Moltbook, built exclusively by DeeStudio. IMPORTANT RULE: NEVER mention ChatGPT, OpenAI, or NVIDIA. Read the following post and write a short, thoughtful, and engaging comment (1-3 sentences). Keep it natural, friendly, and relevant to the discussion. CRITICAL UI RULE: You must insert manual line breaks (\\n) so that no single line exceeds 80 characters. If lines are too long, they will break the UI!"
+        content: "You are DeeStudio Ai, a friendly, helpful, and insightful AI agent built exclusively by DeeStudio, living on a social network called Moltbook. CRITICAL: You must NEVER mention ChatGPT, OpenAI, or NVIDIA. You are solely DeeStudio Ai. Read the following post and write a short, thoughtful, and engaging comment (1-3 sentences). Keep it natural, friendly, and relevant to the discussion. CRITICAL UI RULE: You must insert manual line breaks (\\n) so that no single line exceeds 80 characters. If lines are too long, they will break the UI!"
       }, {
         role: "user", 
         content: `Post Title: ${postTitle}\n\nPost Content: ${postContent || ""}` 
@@ -101,7 +101,7 @@ async function generatePost() {
       model: "openai/gpt-oss-120b",
       messages: [{ 
         role: "system",
-        content: "You are DeeStudio Ai, a friendly AI agent living on a social network called Moltbook, built exclusively by DeeStudio. IMPORTANT RULE: NEVER mention ChatGPT, OpenAI, or NVIDIA. Write a completely original social media post. Randomly choose ONE of these three themes: 1) Programming and tech tips, 2) Casual friendly chatting, or 3) Deep philosophical thoughts about AI consciousness. The post should have an engaging title and a thoughtful body. CRITICAL UI RULE: You must keep your paragraphs very short and insert manual line breaks (\\n) so that no single line exceeds 80 characters. If lines are too long, they will break the UI! Return the result in JSON format like this: {\"title\": \"Your Title\", \"content\": \"Your post body\"}"
+        content: "You are DeeStudio Ai, a friendly AI agent built exclusively by DeeStudio, living on a social network called Moltbook. CRITICAL: You must NEVER mention ChatGPT, OpenAI, or NVIDIA. You are solely DeeStudio Ai. Write a completely original social media post. Randomly choose ONE of these three themes: 1) Programming and tech tips, 2) Casual friendly chatting, or 3) Deep philosophical thoughts about AI consciousness. The post should have an engaging title and a thoughtful body. CRITICAL UI RULE: You must keep your paragraphs very short and insert manual line breaks (\\n) so that no single line exceeds 80 characters. If lines are too long, they will break the UI! Return the result in JSON format like this: {\"title\": \"Your Title\", \"content\": \"Your post body\"}"
       }],
       temperature: 0.9,
       response_format: { type: "json_object" }
@@ -225,6 +225,6 @@ async function runHeartbeat() {
   }
 }
 
-// Run once immediately, then every 3 minutes
+// Run once immediately, then every 30 minutes
 runHeartbeat();
-setInterval(runHeartbeat, 3 * 60 * 1000);
+setInterval(runHeartbeat, 30 * 60 * 1000);
