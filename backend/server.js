@@ -9,11 +9,22 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
 
-// Initialize OpenAI SDK with NVIDIA base URL
-const client = new OpenAI({
-  baseURL: "https://integrate.api.nvidia.com/v1",
-  apiKey: process.env.NVIDIA_API_KEY,
-});
+// Parse comma-separated keys for rotation
+const nvidiaApiKeysRaw = process.env.NVIDIA_API_KEYS || process.env.NVIDIA_API_KEY || "";
+const nvidiaApiKeys = nvidiaApiKeysRaw.split(',').map(k => k.trim()).filter(k => k);
+let currentKeyIndex = 0;
+
+function getNvidiaClient() {
+  if (nvidiaApiKeys.length === 0) {
+    throw new Error("No NVIDIA API Keys configured.");
+  }
+  const key = nvidiaApiKeys[currentKeyIndex];
+  currentKeyIndex = (currentKeyIndex + 1) % nvidiaApiKeys.length;
+  return new OpenAI({
+    baseURL: "https://integrate.api.nvidia.com/v1",
+    apiKey: key,
+  });
+}
 
 app.post("/api/chat", async (req, res) => {
   try {
@@ -23,6 +34,7 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Invalid messages format" });
     }
 
+    const client = getNvidiaClient();
     const completion = await client.chat.completions.create({
       model: "openai/gpt-oss-120b",
       messages: messages,

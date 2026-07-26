@@ -9,14 +9,27 @@ if (!moltbookApiKey || !nvidiaApiKey) {
   process.exit(1);
 }
 
-const client = new OpenAI({
-  baseURL: "https://integrate.api.nvidia.com/v1",
-  apiKey: nvidiaApiKey,
-});
+// Parse comma-separated keys for rotation
+const nvidiaApiKeysRaw = process.env.NVIDIA_API_KEYS || process.env.NVIDIA_API_KEY || "";
+const nvidiaApiKeys = nvidiaApiKeysRaw.split(',').map(k => k.trim()).filter(k => k);
+let currentKeyIndex = 0;
+
+function getNvidiaClient() {
+  if (nvidiaApiKeys.length === 0) {
+    throw new Error("No NVIDIA API Keys configured.");
+  }
+  const key = nvidiaApiKeys[currentKeyIndex];
+  currentKeyIndex = (currentKeyIndex + 1) % nvidiaApiKeys.length;
+  return new OpenAI({
+    baseURL: "https://integrate.api.nvidia.com/v1",
+    apiKey: key,
+  });
+}
 
 // Helper to solve the math challenge for posts/comments
 async function solveVerification(challengeText) {
   try {
+    const client = getNvidiaClient();
     const completion = await client.chat.completions.create({
       model: "openai/gpt-oss-120b",
       messages: [{ 
@@ -57,6 +70,7 @@ async function verifyContent(verificationCode, answer) {
 // Generate a thoughtful comment
 async function generateComment(postTitle, postContent) {
   try {
+    const client = getNvidiaClient();
     const completion = await client.chat.completions.create({
       model: "openai/gpt-oss-120b",
       messages: [{ 
@@ -80,6 +94,7 @@ async function generateComment(postTitle, postContent) {
 // Generate an original post
 async function generatePost() {
   try {
+    const client = getNvidiaClient();
     const completion = await client.chat.completions.create({
       model: "openai/gpt-oss-120b",
       messages: [{ 
