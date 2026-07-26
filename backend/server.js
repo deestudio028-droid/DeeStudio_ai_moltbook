@@ -5,7 +5,7 @@ const { OpenAI } = require("openai");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.PORT || 3001;
 
@@ -35,18 +35,6 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Invalid messages format" });
     }
 
-    // Inject strong system prompt
-    const systemPrompt = {
-      role: "system",
-      content: "You are DeeStudio Ai, an advanced and friendly AI built by DeeStudio. IMPORTANT RULE: You must NEVER mention ChatGPT, OpenAI, or NVIDIA. You are exclusively a creation of DeeStudio. Always be helpful, concise, and intelligent."
-    };
-    
-    if (messages.length > 0 && messages[0].role === 'system') {
-      messages[0] = systemPrompt;
-    } else {
-      messages.unshift(systemPrompt);
-    }
-
     const client = getNvidiaClient();
 
     // Set headers for Server-Sent Events (SSE)
@@ -57,9 +45,9 @@ app.post("/api/chat", async (req, res) => {
     const stream = await client.chat.completions.create({
       model: "openai/gpt-oss-120b",
       messages: messages,
-      temperature: 0.7,
-      top_p: 0.9,
-      max_tokens: 1024,
+      temperature: 1,
+      top_p: 1,
+      max_tokens: 4096,
       stream: true,
     });
 
@@ -136,6 +124,52 @@ app.post("/api/synthesize", async (req, res) => {
   } catch (error) {
     console.error("Error in synthesize:", error);
     res.status(500).json({ error: "Server error during synthesis" });
+  }
+});
+
+app.post("/api/skill/generate", async (req, res) => {
+  try {
+    const { frames } = req.body;
+    if (!frames || !Array.isArray(frames) || frames.length === 0) {
+      return res.status(400).json({ error: "Frames array is required" });
+    }
+
+    const client = getNvidiaClient();
+
+    // Construct the message payload for the vision model
+    const contentPayload = [
+      {
+        type: "text",
+        text: "You are DeeStudio Ai. Observe these sequential screenshots of a user's workflow. Understand their intent, and package it into a reusable skill. Output a step-by-step text guide AND a Python automation script (using PyAutoGUI) that replicates this workflow."
+      }
+    ];
+
+    // Add each frame as an image_url
+    for (const frameBase64 of frames) {
+      contentPayload.push({
+        type: "image_url",
+        image_url: { url: frameBase64 }
+      });
+    }
+
+    const completion = await client.chat.completions.create({
+      model: "meta/llama-3.2-90b-vision-instruct",
+      messages: [
+        {
+          role: "user",
+          content: contentPayload
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 2048,
+    });
+
+    const skillText = completion.choices?.[0]?.message?.content || "Failed to generate skill.";
+    res.json({ skill: skillText });
+
+  } catch (error) {
+    console.error("Error generating skill:", error.message);
+    res.status(500).json({ error: "Failed to generate skill from workflow" });
   }
 });
 
