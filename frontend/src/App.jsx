@@ -153,15 +153,15 @@ function App() {
 
   const stitchFrames = (frames) => {
     return new Promise((resolve) => {
-      const MAX_FRAMES = 9;
+      const MAX_FRAMES = 3;
       const sampledFrames = [];
       if (frames.length <= MAX_FRAMES) {
         sampledFrames.push(...frames);
       } else {
-        const step = (frames.length - 1) / (MAX_FRAMES - 1);
-        for (let i = 0; i < MAX_FRAMES; i++) {
-          sampledFrames.push(frames[Math.round(i * step)]);
-        }
+        // First, middle, last to capture the workflow summary
+        sampledFrames.push(frames[0]);
+        sampledFrames.push(frames[Math.floor(frames.length / 2)]);
+        sampledFrames.push(frames[frames.length - 1]);
       }
 
       const images = [];
@@ -173,25 +173,26 @@ function App() {
           images[i] = img;
           loadedCount++;
           if (loadedCount === sampledFrames.length) {
-            const cols = 1;
-            const rows = sampledFrames.length;
+            // Horizontal filmstrip to prevent vertical squash
+            const cols = sampledFrames.length;
+            const rows = 1;
             
             const frameW = images[0].width;
             const frameH = images[0].height;
             
-            // Limit width to 1280px to keep text readable but file size manageable
+            // Limit width to 1280px per frame (3840px total)
             const scale = 1280 / frameW; 
             const drawW = frameW * scale;
             const drawH = frameH * scale;
 
             const canvas = document.createElement('canvas');
-            canvas.width = drawW;
-            canvas.height = rows * drawH;
+            canvas.width = cols * drawW;
+            canvas.height = drawH;
             const ctx = canvas.getContext('2d');
             
             images.forEach((image, index) => {
-              const x = 0;
-              const y = index * drawH;
+              const x = index * drawW;
+              const y = 0;
               ctx.drawImage(image, x, y, drawW, drawH);
               
               // Draw a semi-transparent background for the text so it's always visible
@@ -203,8 +204,8 @@ function App() {
               ctx.fillText((index + 1).toString(), x + 30, y + 55);
             });
             
-            // Higher quality JPEG to ensure text is readable
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
+            // Very high quality JPEG for OCR readability
+            resolve(canvas.toDataURL('image/jpeg', 0.95));
           }
         };
         img.src = src;
