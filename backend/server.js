@@ -151,7 +151,7 @@ app.post("/api/skill/generate", async (req, res) => {
     const contentPayload = [
       {
         type: "text",
-        text: "You are DeeStudio Ai. Observe these sequential screenshots of a user's workflow. Understand their intent, and package it into a reusable skill. Output a step-by-step text guide AND a Python automation script (using PyAutoGUI) that replicates this workflow."
+        text: "You are DeeStudio Ai. I have provided a single image containing a storyboard grid of screenshots showing a user's screen recording (numbered 1, 2, 3, etc.). Look very closely at the screen contents (e.g. Notepad, desktop, browser). Understand their intent, and package it into a reusable skill. Output a step-by-step text guide AND a Python automation script (using PyAutoGUI). CRITICAL: Do NOT hallucinate. Do NOT make up a workflow about DeeStudio. Describe EXACTLY what is happening on the screen (like opening a text editor, typing specific words, saving a file). If you cannot read the text, state that."
       }
     ];
 

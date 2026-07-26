@@ -173,32 +173,38 @@ function App() {
           images[i] = img;
           loadedCount++;
           if (loadedCount === sampledFrames.length) {
-            const cols = Math.ceil(Math.sqrt(sampledFrames.length));
-            const rows = Math.ceil(sampledFrames.length / cols);
+            const cols = 1;
+            const rows = sampledFrames.length;
             
             const frameW = images[0].width;
             const frameH = images[0].height;
             
-            const scale = 600 / Math.max(frameW, frameH); 
+            // Limit width to 1280px to keep text readable but file size manageable
+            const scale = 1280 / frameW; 
             const drawW = frameW * scale;
             const drawH = frameH * scale;
 
             const canvas = document.createElement('canvas');
-            canvas.width = cols * drawW;
+            canvas.width = drawW;
             canvas.height = rows * drawH;
             const ctx = canvas.getContext('2d');
             
             images.forEach((image, index) => {
-              const x = (index % cols) * drawW;
-              const y = Math.floor(index / cols) * drawH;
+              const x = 0;
+              const y = index * drawH;
               ctx.drawImage(image, x, y, drawW, drawH);
               
-              ctx.fillStyle = 'red';
-              ctx.font = 'bold 36px Arial';
-              ctx.fillText((index + 1).toString(), x + 10, y + 40);
+              // Draw a semi-transparent background for the text so it's always visible
+              ctx.fillStyle = 'rgba(0,0,0,0.7)';
+              ctx.fillRect(x, y, 100, 80);
+              
+              ctx.fillStyle = '#ef4444'; // Red text
+              ctx.font = 'bold 48px Arial';
+              ctx.fillText((index + 1).toString(), x + 30, y + 55);
             });
             
-            resolve(canvas.toDataURL('image/jpeg', 0.6));
+            // Higher quality JPEG to ensure text is readable
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
           }
         };
         img.src = src;
