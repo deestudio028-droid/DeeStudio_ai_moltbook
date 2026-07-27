@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     pkg-config \
     libenchant-2-dev \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -26,6 +27,14 @@ RUN pip install -e .[all] || true
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
+
+# Download and extract the Tamil models directly into the Docker image
+# This avoids Windows volume mount issues and ensures it works on Railway!
+RUN mkdir -p /app/models \
+    && cd /app/models \
+    && curl -L -o ta.zip https://github.com/AI4Bharat/Indic-TTS/releases/download/v1-checkpoints-release/ta.zip \
+    && unzip ta.zip \
+    && rm ta.zip
 
 COPY app.py .
 
