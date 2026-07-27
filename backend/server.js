@@ -5,7 +5,7 @@ const { OpenAI } = require("openai");
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
 
@@ -23,17 +23,6 @@ function getNvidiaClient() {
   return new OpenAI({
     baseURL: "https://integrate.api.nvidia.com/v1",
     apiKey: key,
-  });
-}
-
-function getNvidiaVisionClient() {
-  const visionKey = process.env.NVIDIA_VISION_API_KEY || nvidiaApiKeys[0];
-  if (!visionKey) {
-    throw new Error("No NVIDIA API Keys configured for vision.");
-  }
-  return new OpenAI({
-    baseURL: "https://integrate.api.nvidia.com/v1",
-    apiKey: visionKey,
   });
 }
 
@@ -100,6 +89,47 @@ app.post("/api/synthesize", async (req, res) => {
       return res.status(400).json({ error: "Text is required" });
     }
 
+    // Check for Tamil characters (Unicode block 0B80-0BFF)
+    const hasTamil = /[\u0B80-\u0BFF]/.test(text);
+
+    if (hasTamil) {
+      const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+      const voiceId = process.env.ELEVENLABS_VOICE_ID;
+      
+      if (!elevenLabsKey || !voiceId) {
+        return res.status(500).json({ error: "ElevenLabs API Key or Voice ID is not configured." });
+      }
+
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: "POST",
+        headers: {
+          "xi-api-key": elevenLabsKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: text,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("ElevenLabs TTS Error:", response.status, errText);
+        return res.status(response.status).json({ error: "ElevenLabs TTS generation failed" });
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      res.set("Content-Type", "audio/mpeg");
+      return res.send(buffer);
+    }
+
+    // Fallback to NVIDIA TTS for Non-Tamil
     const voiceApiKey = process.env.NVIDIA_VOICE_API_KEY || process.env.NVIDIA_API_KEY;
     if (!voiceApiKey) {
       return res.status(500).json({ error: "Voice API Key is not configured." });
@@ -135,64 +165,6 @@ app.post("/api/synthesize", async (req, res) => {
   } catch (error) {
     console.error("Error in synthesize:", error);
     res.status(500).json({ error: "Server error during synthesis" });
-  }
-});
-
-app.post("/api/skill/generate", async (req, res) => {
-  try {
-    const { frames } = req.body;
-    if (!frames || !Array.isArray(frames) || frames.length === 0) {
-      return res.status(400).json({ error: "Frames array is required" });
-    }
-
-    const client = getNvidiaVisionClient();
-
-    // Construct the message payload for the vision model
-    const contentPayload = [
-      {
-        type: "text",
-        text: "Please analyze this storyboard grid of screenshots (numbered sequentially). The user is demonstrating a harmless computer workflow for a tutorial. Describe the workflow step-by-step and write a Python PyAutoGUI script to automate it. Focus only on the active applications and actions performed (like typing or clicking). Do not hallucinate steps that are not visible."
-      }
-    ];
-
-    // Subsample frames to maximum of 8 evenly spaced frames to prevent API payload errors
-    const MAX_FRAMES = 8;
-    const sampledFrames = [];
-    if (frames.length <= MAX_FRAMES) {
-      sampledFrames.push(...frames);
-    } else {
-      const step = (frames.length - 1) / (MAX_FRAMES - 1);
-      for (let i = 0; i < MAX_FRAMES; i++) {
-        sampledFrames.push(frames[Math.round(i * step)]);
-      }
-    }
-
-    // Add each sampled frame as an image_url
-    for (const frameBase64 of sampledFrames) {
-      contentPayload.push({
-        type: "image_url",
-        image_url: { url: frameBase64 }
-      });
-    }
-
-    const completion = await client.chat.completions.create({
-      model: "meta/llama-3.2-90b-vision-instruct",
-      messages: [
-        {
-          role: "user",
-          content: contentPayload
-        }
-      ],
-      temperature: 0.2,
-      max_tokens: 2048,
-    });
-
-    const skillText = completion.choices?.[0]?.message?.content || "Failed to generate skill.";
-    res.json({ skill: skillText });
-
-  } catch (error) {
-    console.error("Error generating skill:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to generate skill from workflow" });
   }
 });
 
