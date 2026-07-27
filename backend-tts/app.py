@@ -33,9 +33,15 @@ def synthesize():
         return {"error": "TTS Model not loaded"}, 500
         
     data = request.json
-    text = data.get("text")
+    text = data.get("text", "").strip()
     if not text:
         return {"error": "No text provided"}, 400
+        
+    # PyTorch FastPitch models with kernel size 3 will crash if the input text 
+    # translates to a phoneme sequence that is too short (e.g. a single letter).
+    # We pad short texts with a neutral punctuation to ensure minimum length.
+    if len(text) < 3:
+        text = text + " . . ."
         
     try:
         # Note: Depending on the AI4Bharat config, speaker names might vary. 
