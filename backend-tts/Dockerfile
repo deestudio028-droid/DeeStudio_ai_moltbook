@@ -35,7 +35,9 @@ RUN mkdir -p /app/models \
     && cd /app/models \
     && curl -L -o ta.zip https://github.com/AI4Bharat/Indic-TTS/releases/download/v1-checkpoints-release/ta.zip \
     && unzip ta.zip \
-    && rm ta.zip
+    && rm ta.zip \
+    && sed -i 's/models\/v1\/ta/models\/ta/g' /app/models/ta/fastpitch/config.json \
+    && sed -i 's/models\/v1\/ta/models\/ta/g' /app/models/ta/hifigan/config.json
 
 COPY app.py .
 
