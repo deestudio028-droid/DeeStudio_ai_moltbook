@@ -117,10 +117,10 @@ app.post("/api/synthesize", async (req, res) => {
       });
 
       // If user is on a free plan and tried to use a premium library voice (like Ramaa), 
-      // ElevenLabs returns 402. We will automatically fallback to a default free voice (Rachel).
+      // ElevenLabs returns 402. We will automatically fallback to a verified free premade voice (Sarah).
       if (response.status === 402) {
-        console.warn("ElevenLabs 402 Payment Required: Falling back to default free voice 'Rachel'");
-        const fallbackVoiceId = "21m00Tcm4TlvDq8ikWAM"; // Rachel (Default Free Voice)
+        console.warn("ElevenLabs 402 Payment Required: Falling back to default free voice 'Sarah'");
+        const fallbackVoiceId = "EXAVITQu4vr4xnSDxMaL"; // Sarah (Verified Free Premade Voice)
         response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${fallbackVoiceId}`, {
           method: "POST",
           headers: {
