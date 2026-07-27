@@ -93,62 +93,30 @@ app.post("/api/synthesize", async (req, res) => {
     const hasTamil = /[\u0B80-\u0BFF]/.test(text);
 
     if (hasTamil) {
-      const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-      const voiceId = process.env.ELEVENLABS_VOICE_ID;
-      
-      if (!elevenLabsKey || !voiceId) {
-        return res.status(500).json({ error: "ElevenLabs API Key or Voice ID is not configured." });
-      }
-
-      let response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-        method: "POST",
-        headers: {
-          "xi-api-key": elevenLabsKey,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          text: text,
-          model_id: "eleven_multilingual_v2",
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75
-          }
-        })
-      });
-
-      // If user is on a free plan and tried to use a premium library voice (like Ramaa), 
-      // ElevenLabs returns 402. We will automatically fallback to a verified free premade voice (Sarah).
-      if (response.status === 402) {
-        console.warn("ElevenLabs 402 Payment Required: Falling back to default free voice 'Sarah'");
-        const fallbackVoiceId = "EXAVITQu4vr4xnSDxMaL"; // Sarah (Verified Free Premade Voice)
-        response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${fallbackVoiceId}`, {
-          method: "POST",
+      try {
+        const response = await fetch('http://localhost:5000/synthesize', {
+          method: 'POST',
           headers: {
-            "xi-api-key": elevenLabsKey,
-            "Content-Type": "application/json"
+            'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            text: text,
-            model_id: "eleven_multilingual_v2",
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75
-            }
-          })
+          body: JSON.stringify({ text })
         });
-      }
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error("ElevenLabs TTS Error:", response.status, errText);
-        return res.status(response.status).json({ error: "ElevenLabs TTS generation failed" });
-      }
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error("Local Indic-TTS Error:", response.status, errText);
+          return res.status(response.status).json({ error: "Local Indic-TTS generation failed" });
+        }
 
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      
-      res.set("Content-Type", "audio/mpeg");
-      return res.send(buffer);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        res.set("Content-Type", "audio/wav");
+        return res.send(buffer);
+      } catch (error) {
+        console.error("Failed to connect to local TTS microservice:", error.message);
+        return res.status(500).json({ error: "TTS microservice is unreachable" });
+      }
     }
 
     // Fallback to NVIDIA TTS for Non-Tamil
