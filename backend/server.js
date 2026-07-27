@@ -100,7 +100,7 @@ app.post("/api/synthesize", async (req, res) => {
         return res.status(500).json({ error: "ElevenLabs API Key or Voice ID is not configured." });
       }
 
-      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      let response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
         method: "POST",
         headers: {
           "xi-api-key": elevenLabsKey,
@@ -115,6 +115,28 @@ app.post("/api/synthesize", async (req, res) => {
           }
         })
       });
+
+      // If user is on a free plan and tried to use a premium library voice (like Ramaa), 
+      // ElevenLabs returns 402. We will automatically fallback to a default free voice (Rachel).
+      if (response.status === 402) {
+        console.warn("ElevenLabs 402 Payment Required: Falling back to default free voice 'Rachel'");
+        const fallbackVoiceId = "21m00Tcm4TlvDq8ikWAM"; // Rachel (Default Free Voice)
+        response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${fallbackVoiceId}`, {
+          method: "POST",
+          headers: {
+            "xi-api-key": elevenLabsKey,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            text: text,
+            model_id: "eleven_multilingual_v2",
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75
+            }
+          })
+        });
+      }
 
       if (!response.ok) {
         const errText = await response.text();
