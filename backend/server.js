@@ -43,7 +43,7 @@ app.post("/api/chat", async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     const stream = await client.chat.completions.create({
-      model: "meta/llama-3.1-8b-instruct",
+      model: "openai/gpt-oss-20b",
       messages: messages,
       temperature: 0.7,
       top_p: 0.9,
@@ -71,10 +71,11 @@ app.post("/api/chat", async (req, res) => {
     res.end();
 
   } catch (error) {
-    console.error("Error calling NVIDIA API:", error.message);
-    // If headers haven't been sent yet, send JSON error
+    const detail = error?.message || error?.toString() || 'Unknown error';
+    const status = error?.status || error?.statusCode || 500;
+    console.error("Error calling NVIDIA API:", status, detail);
     if (!res.headersSent) {
-      res.status(500).json({ error: "Failed to generate response" });
+      res.status(500).json({ error: `Model error: ${detail}` });
     } else {
       res.write(`data: ${JSON.stringify({ type: "error", content: "Stream interrupted." })}\n\n`);
       res.end();
