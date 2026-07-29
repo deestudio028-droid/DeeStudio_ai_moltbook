@@ -47,10 +47,20 @@ def synthesize():
         # Note: Depending on the AI4Bharat config, speaker names might vary. 
         # We try "male" first, or let it default if speaker_name is not accepted.
         try:
-            wav = synthesizer.tts(text, speaker_name="male")
-        except TypeError:
-            # If synthesizer doesn't accept speaker_name or 'male' is invalid, fallback to default.
-            wav = synthesizer.tts(text)
+            try:
+                wav = synthesizer.tts(text, speaker_name="male")
+            except TypeError:
+                wav = synthesizer.tts(text)
+        except RuntimeError as e:
+            if "Kernel size can't be greater than actual input size" in str(e):
+                print("Text too short for CNN kernel, padding with pauses and retrying...")
+                padded = text + " , , , "
+                try:
+                    wav = synthesizer.tts(padded, speaker_name="male")
+                except TypeError:
+                    wav = synthesizer.tts(padded)
+            else:
+                raise e
 
         # Write to a temporary file
         fd, path = tempfile.mkstemp(suffix=".wav")
