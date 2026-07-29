@@ -97,17 +97,15 @@ app.post("/api/synthesize", async (req, res) => {
       try {
         // Split into sentences for faster response. 
         // Only synthesize the first meaningful sentence to get audio playing ASAP.
-        // Tamil sentence endings: । . ! ?
         const sentenceEnders = /([.!?।]\s+|\n)/;
         const sentences = text.split(sentenceEnders).filter(s => s && s.trim().length > 2 && !/^[.!?।\s]+$/.test(s));
         const firstChunk = sentences.length > 0 ? sentences[0].trim() : text.trim();
-        // Ensure it's not too long for the model
         const ttsText = firstChunk.length > 200 ? firstChunk.substring(0, 200) : firstChunk;
 
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 25000); // 25s hard timeout
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-        const response = await fetch('http://localhost:5000/synthesize', {
+        const ttsResponse = await fetch('http://localhost:5000/synthesize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: ttsText }),
@@ -115,23 +113,16 @@ app.post("/api/synthesize", async (req, res) => {
         });
         clearTimeout(timeout);
 
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error("Local Indic-TTS Error:", response.status, errText);
-          return res.status(response.status).json({ error: "Local Indic-TTS generation failed" });
+        if (ttsResponse.ok) {
+          const arrayBuffer = await ttsResponse.arrayBuffer();
+          res.set("Content-Type", "audio/wav");
+          return res.send(Buffer.from(arrayBuffer));
         }
-
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        res.set("Content-Type", "audio/wav");
-        return res.send(buffer);
+        // Docker TTS failed - fall through to NVIDIA TTS below
+        console.warn("Tamil Docker TTS failed, falling back to NVIDIA TTS");
       } catch (error) {
-        if (error.name === 'AbortError') {
-          console.error("TTS microservice timed out after 25s");
-          return res.status(504).json({ error: "TTS timed out" });
-        }
-        console.error("Failed to connect to local TTS microservice:", error.message);
-        return res.status(500).json({ error: "TTS microservice is unreachable" });
+        // Docker not running - fall through to NVIDIA TTS
+        console.warn("Tamil Docker TTS unreachable, falling back to NVIDIA TTS:", error.message);
       }
     }
 

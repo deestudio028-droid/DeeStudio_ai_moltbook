@@ -19,84 +19,29 @@ function App() {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const currentAudioRef = useRef(null);
-  
-  // Audio Streaming Queue Refs
-  const audioQueueRef = useRef([]);
-  const isAudioPlayingRef = useRef(false);
-
-  const processAudioQueue = async () => {
-    if (isAudioPlayingRef.current || audioQueueRef.current.length === 0) return;
-    
-    isAudioPlayingRef.current = true;
-    const url = audioQueueRef.current.shift();
-    
-    const audio = new Audio(url);
-    currentAudioRef.current = audio;
-    
-    audio.onended = () => {
-      URL.revokeObjectURL(url);
-      isAudioPlayingRef.current = false;
-      currentAudioRef.current = null;
-      processAudioQueue(); // Play next in queue
-    };
-    
-    audio.onerror = () => {
-      URL.revokeObjectURL(url);
-      isAudioPlayingRef.current = false;
-      currentAudioRef.current = null;
-      processAudioQueue();
-    };
-    
-    try {
-      await audio.play();
-    } catch (e) {
-      console.error("Audio play error", e);
-      isAudioPlayingRef.current = false;
-      processAudioQueue();
-    }
-  };
-
-  const enqueueAudio = async (text) => {
-    if (!text.trim()) return;
-    try {
-      const response = await fetch('http://localhost:3001/api/synthesize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
-      });
-      if (!response.ok) return;
-      
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      audioQueueRef.current.push(url);
-      processAudioQueue();
-    } catch (err) {
-      console.error('TTS enqueue failed:', err);
-    }
-  };
 
   const playVoice = async (text, index) => {
-    // Manual playback of a full message clears the queue and plays everything at once
+    // Stop any currently playing audio
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
     }
-    audioQueueRef.current = [];
-    isAudioPlayingRef.current = false;
-    
     if (playingIndex === index) {
       setPlayingIndex(null);
       return;
     }
     setPlayingIndex(index);
-    
     try {
       const response = await fetch('http://localhost:3001/api/synthesize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text })
       });
-      if (!response.ok) throw new Error('TTS failed');
+      if (!response.ok) {
+        // Silently fail - TTS is a nice-to-have, not critical
+        setPlayingIndex(null);
+        return;
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
@@ -105,7 +50,7 @@ function App() {
       audio.onerror = () => { setPlayingIndex(null); currentAudioRef.current = null; };
       await audio.play();
     } catch (err) {
-      console.error('Error playing voice:', err);
+      // Silently fail - don't let TTS errors break the chat UI
       setPlayingIndex(null);
     }
   };
@@ -124,8 +69,6 @@ function App() {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
     }
-    audioQueueRef.current = [];
-    isAudioPlayingRef.current = false;
     setPlayingIndex(null);
     const initial = [{ role: 'assistant', content: 'Hello! I am DeeStudio Ai, built by DeeStudio. How can I help you today?' }];
     setMessages(initial);
@@ -168,15 +111,6 @@ function App() {
 
     let fullContent = '';
     let fullReasoning = '';
-    let sentenceBuffer = '';
-    
-    // Clear queue for new message
-    audioQueueRef.current = [];
-    isAudioPlayingRef.current = false;
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
 
     try {
       const apiMessages = newMessages.map(msg => ({ role: msg.role, content: msg.content }));
@@ -208,32 +142,12 @@ function App() {
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const data = line.slice(6);
-          
-          if (data === '[DONE]') {
-             // Flush remaining buffer when done
-             if (sentenceBuffer.trim().length > 0) {
-                 enqueueAudio(sentenceBuffer);
-                 sentenceBuffer = '';
-             }
-             break;
-          }
+          if (data === '[DONE]') break;
 
           try {
             const parsed = JSON.parse(data);
             if (parsed.type === 'content') {
-              const newText = parsed.content;
-              fullContent += newText;
-              sentenceBuffer += newText;
-              
-              // Detect sentence boundaries
-              const match = sentenceBuffer.match(/([.!?।|]+(\s+|$))/);
-              if (match) {
-                const boundaryIndex = match.index + match[0].length;
-                const completeSentence = sentenceBuffer.substring(0, boundaryIndex);
-                enqueueAudio(completeSentence);
-                sentenceBuffer = sentenceBuffer.substring(boundaryIndex);
-              }
-              
+              fullContent += parsed.content;
             } else if (parsed.type === 'reasoning') {
               fullReasoning += parsed.content;
             }
@@ -254,8 +168,17 @@ function App() {
         }
       }
 
-      setIsStreaming(false);
-      setIsLoading(false);
+      // Auto-play TTS after streaming completes
+      if (fullContent.trim()) {
+        setIsStreaming(false);
+        setIsLoading(false);
+        // Small delay to let state settle before triggering TTS
+        setTimeout(() => {
+          const lastIndex = newMessages.length; // index of the assistant message
+          playVoice(fullContent, lastIndex);
+        }, 300);
+        return;
+      }
 
     } catch (error) {
       console.error("Error:", error);
