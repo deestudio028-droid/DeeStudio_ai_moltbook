@@ -43,6 +43,11 @@ def synthesize():
     if len(text) < 3:
         text = text + " . . ."
         
+    # AI4Bharat models hang or crash if the input exceeds their config max_text_len (400)
+    # Truncating to 390 to be safe and prevent 504 Gateway Timeouts
+    if len(text) > 390:
+        text = text[:390] + "..."
+        
     try:
         # Note: Depending on the AI4Bharat config, speaker names might vary. 
         # We try "male" first, or let it default if speaker_name is not accepted.
