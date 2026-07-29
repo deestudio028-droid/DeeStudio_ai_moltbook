@@ -43,7 +43,7 @@ app.post("/api/chat", async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     const stream = await client.chat.completions.create({
-      model: "openai/gpt-oss-20b",
+      model: "meta/llama-3.1-8b-instruct",
       messages: messages,
       temperature: 0.7,
       top_p: 0.9,
