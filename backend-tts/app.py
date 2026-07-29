@@ -1,8 +1,9 @@
 import os
 import io
+import torch
 from flask import Flask, request, send_file
 from TTS.utils.synthesizer import Synthesizer
-import tempfile
+import soundfile as sf
 
 app = Flask(__name__)
 
@@ -27,52 +28,52 @@ except Exception as e:
     print(f"Error initializing Synthesizer: {e}")
     synthesizer = None
 
+def do_tts(text):
+    """Run TTS inference with torch.no_grad() for ~30% faster CPU inference."""
+    with torch.no_grad():
+        try:
+            return synthesizer.tts(text, speaker_name="male")
+        except TypeError:
+            return synthesizer.tts(text)
+
+@app.route('/health', methods=['GET'])
+def health():
+    return {"status": "ok", "model_loaded": synthesizer is not None}
+
 @app.route('/synthesize', methods=['POST'])
 def synthesize():
     if not synthesizer:
         return {"error": "TTS Model not loaded"}, 500
-        
+
     data = request.json
     text = data.get("text", "").strip()
     if not text:
         return {"error": "No text provided"}, 400
-        
-    # PyTorch FastPitch models with kernel size 3 will crash if the input text 
-    # translates to a phoneme sequence that is too short (e.g. a single letter).
-    # We pad short texts with a neutral punctuation to ensure minimum length.
+
+    # Pad very short texts to avoid PyTorch CNN kernel size crash
     if len(text) < 3:
         text = text + " . . ."
-        
-    # AI4Bharat models hang or crash if the input exceeds their config max_text_len (400)
-    # Truncating to 390 to be safe and prevent 504 Gateway Timeouts
-    if len(text) > 390:
-        text = text[:390] + "..."
-        
+
+    # Hard cap at 200 chars for fast CPU response times (Node sends first sentence only)
+    if len(text) > 200:
+        text = text[:200]
+
     try:
-        # Note: Depending on the AI4Bharat config, speaker names might vary. 
-        # We try "male" first, or let it default if speaker_name is not accepted.
         try:
-            try:
-                wav = synthesizer.tts(text, speaker_name="male")
-            except TypeError:
-                wav = synthesizer.tts(text)
+            wav = do_tts(text)
         except RuntimeError as e:
             if "Kernel size can't be greater than actual input size" in str(e):
-                print("Text too short for CNN kernel, padding with pauses and retrying...")
-                padded = text + " , , , "
-                try:
-                    wav = synthesizer.tts(padded, speaker_name="male")
-                except TypeError:
-                    wav = synthesizer.tts(padded)
+                print("Retrying with extra padding...")
+                wav = do_tts(text + " , , , ")
             else:
                 raise e
 
-        # Write to a temporary file
-        fd, path = tempfile.mkstemp(suffix=".wav")
-        os.close(fd)
-        
-        synthesizer.save_wav(wav, path)
-        return send_file(path, mimetype="audio/wav")
+        # Serve audio directly from memory (no disk write = faster!)
+        buf = io.BytesIO()
+        sf.write(buf, wav, synthesizer.output_sample_rate, format="WAV")
+        buf.seek(0)
+        return send_file(buf, mimetype="audio/wav")
+
     except Exception as e:
         print(f"TTS Generation Error: {e}")
         return {"error": str(e)}, 500

@@ -94,13 +94,25 @@ app.post("/api/synthesize", async (req, res) => {
 
     if (hasTamil) {
       try {
+        // Split into sentences for faster response. 
+        // Only synthesize the first meaningful sentence to get audio playing ASAP.
+        // Tamil sentence endings: । . ! ?
+        const sentenceEnders = /([.!?।]\s+|\n)/;
+        const sentences = text.split(sentenceEnders).filter(s => s && s.trim().length > 2 && !/^[.!?।\s]+$/.test(s));
+        const firstChunk = sentences.length > 0 ? sentences[0].trim() : text.trim();
+        // Ensure it's not too long for the model
+        const ttsText = firstChunk.length > 200 ? firstChunk.substring(0, 200) : firstChunk;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 25000); // 25s hard timeout
+
         const response = await fetch('http://localhost:5000/synthesize', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ text })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: ttsText }),
+          signal: controller.signal
         });
+        clearTimeout(timeout);
 
         if (!response.ok) {
           const errText = await response.text();
@@ -110,10 +122,13 @@ app.post("/api/synthesize", async (req, res) => {
 
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
-        
         res.set("Content-Type", "audio/wav");
         return res.send(buffer);
       } catch (error) {
+        if (error.name === 'AbortError') {
+          console.error("TTS microservice timed out after 25s");
+          return res.status(504).json({ error: "TTS timed out" });
+        }
         console.error("Failed to connect to local TTS microservice:", error.message);
         return res.status(500).json({ error: "TTS microservice is unreachable" });
       }
