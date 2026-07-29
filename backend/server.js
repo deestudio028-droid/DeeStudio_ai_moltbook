@@ -43,7 +43,7 @@ app.post("/api/chat", async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     const stream = await client.chat.completions.create({
-      model: "meta/llama-3.3-70b-instruct",
+      model: "deepseek-ai/deepseek-v4-flash",
       messages: messages,
       temperature: 0.7,
       top_p: 0.9,
